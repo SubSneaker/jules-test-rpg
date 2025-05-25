@@ -1,0 +1,109 @@
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background-color: #f0f0f0;
+  color: #333;
+}
+
+.App {
+  text-align: center;
+}
+
+.App-header {
+  background-color: #282c34;
+  padding: 20px;
+  color: white;
+  margin-bottom: 20px;
+}
+
+.App-header h1 {
+  margin: 0;
+  font-size: 2em;
+}
+
+main {
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.game-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.scenario {
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.scenario h2 {
+  margin-top: 0;
+  color: #555;
+}
+
+.player-stats {
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.player-stats h3 {
+  margin-top: 0;
+  color: #555;
+}
+
+.player-stats ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+.player-stats li {
+  padding: 5px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.player-stats li:last-child {
+  border-bottom: none;
+}
+
+.choices {
+  padding: 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f9f9f9;
+}
+
+.choices h3 {
+  margin-top: 0;
+  color: #555;
+}
+
+.choices button {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 10px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  text-align: left;
+}
+
+.choices button:hover {
+  background-color: #0056b3;
+}
+
+.choices button:last-child {
+  margin-bottom: 0;
+}
