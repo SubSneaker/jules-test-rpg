@@ -1,10 +1,21 @@
+require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
+const cors = require('cors');
 const { GoogleGenerativeAI } = require("@google/generative-ai"); // CommonJS import
 
 const app = express();
 const port = 3001;
 
+// Enable CORS for all routes
+app.use(cors({
+  origin: 'http://localhost:5173', // Allow requests from your frontend
+  credentials: true
+}));
+
 // Initialize Google GenAI
+console.log("Initializing Google GenAI");
+console.log(process.env);
+console.log("GEMINI_API_KEY", process.env.GEMINI_API_KEY);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "DUMMY_API_KEY_FOR_WORKER_TESTING";
 if (!process.env.GEMINI_API_KEY) {
   console.warn("WARNING: GEMINI_API_KEY environment variable is not set. Using a DUMMY KEY. AI features will likely fail actual API calls.");
