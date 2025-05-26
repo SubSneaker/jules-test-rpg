@@ -1,42 +1,26 @@
-require('dotenv').config(); // Load environment variables from .env file
 const express = require('express');
-const cors = require('cors');
-const { GoogleGenerativeAI } = require("@google/generative-ai"); // CommonJS import
+const { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Modality } = require("@google/generative-ai"); 
+const { sequelize, Adventure } = require('./database.js'); 
 
 const app = express();
 const port = 3001;
 
-// Enable CORS for all routes
-app.use(cors({
-  origin: 'http://localhost:5173', // Allow requests from your frontend
-  credentials: true
-}));
-
-// Initialize Google GenAI
-console.log("Initializing Google GenAI");
-console.log(process.env);
-console.log("GEMINI_API_KEY", process.env.GEMINI_API_KEY);
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "DUMMY_API_KEY_FOR_WORKER_TESTING";
-if (!process.env.GEMINI_API_KEY) {
-  console.warn("WARNING: GEMINI_API_KEY environment variable is not set. Using a DUMMY KEY. AI features will likely fail actual API calls.");
+const IS_DUMMY_KEY = GEMINI_API_KEY === "DUMMY_API_KEY_FOR_WORKER_TESTING";
+
+if (IS_DUMMY_KEY) {
+  console.warn("WARNING: GEMINI_API_KEY environment variable is not set or is DUMMY. Using a DUMMY KEY. AI features will use fallbacks.");
 }
 const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-// Model name updated based on common availability, adjust if needed.
-const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" }); 
 
-app.use(express.json()); // Middleware to parse JSON bodies
+const textModel = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const imageModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash-preview-image-generation" }); 
+
+app.use(express.json()); 
 
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend is alive!' });
 });
-
-const defaultChoices = [
-  { id: "1", text: "Investigate the strange noise." },
-  { id: "2", text: "Fortify your current position." },
-  { id: "3", text: "Search for supplies." },
-  { id: "4", text: "Try to find other survivors." },
-  { id: "5", text: "Rest and regain energy." }
-];
 
 const defaultPlayerStats = {
   health: 100,
@@ -46,79 +30,217 @@ const defaultPlayerStats = {
   intelligence: 10
 };
 
-// GET /api/game/start
+const genericStartChoices = [
+  { id: "1", text: "Look around the area." },
+  { id: "2", text: "Investigate further into the immediate surroundings." },
+  { id: "3", text: "Try to talk to someone nearby, if applicable." },
+  { id: "4", text: "Consider leaving the current area." },
+  { id: "5", text: "Check your belongings or current status." }
+];
+
+const defaultErrorChoices = [
+    { id: "1", text: "Try to make sense of the situation again." },
+    { id: "2", text: "Look around your immediate surroundings." },
+    { id: "3", text: "Rest for a moment to gather your thoughts." },
+    { id: "4", text: "Yell for help, just in case." }
+];
+
+// GET /api/game/start (assumed correct from previous steps)
 app.get('/api/game/start', async (req, res) => {
+  let generatedScenario = "You find yourself at a dusty crossroads under a sky of swirling twin moons. A rickety signpost points in three directions: towards a dark forest, a shimmering city, and a jagged mountain range. The air is still and expectant. What do you do?";
+  let imageStyleTags = ['fantasy art', 'epic', 'detailed', 'crossroads', 'twin moons'];
+  let generatedImageData = null; 
+
   try {
-    const prompt = "Generate a short, exciting opening scenario for a fantasy text adventure game. Describe a scene and a situation that requires the player to make a choice. Max 100 words.";
-    const result = await textModel.generateContent(prompt);
-    const generatedScenario = result.response.text(); 
+    if (!IS_DUMMY_KEY) {
+      try {
+        const scenarioPrompt = "Generate a short, exciting opening scenario for a fantasy text adventure game. Max 75 words.";
+        const result = await textModel.generateContent(scenarioPrompt);
+        generatedScenario = result.response.text();
+      } catch (aiError) {
+        console.error("Error generating start scenario with AI:", aiError.message);
+      }
+    }
+
+    if (!IS_DUMMY_KEY) {
+      try {
+        const tagsPrompt = `Based on the scenario: "${generatedScenario}", generate 5-7 descriptive style tags for creating consistent images. Tags should cover art style (e.g., 'oil painting', 'photorealistic', 'pixel art'), mood (e.g., 'dark', 'mystical', 'adventurous'), and key visual themes. Output as a comma-separated list.`;
+        const tagsResult = await textModel.generateContent(tagsPrompt);
+        const rawTags = tagsResult.response.text();
+        const parsedTags = rawTags.split(',').map(tag => tag.trim()).filter(tag => tag);
+        if (parsedTags.length > 0) {
+            imageStyleTags = parsedTags;
+        } else {
+            console.warn("AI generated empty or invalid tags, using default.");
+        }
+      } catch (aiError) {
+        console.error("Error generating image style tags with AI:", aiError.message);
+      }
+    }
+    
+    let newAdventure;
+    try {
+      newAdventure = await Adventure.create({
+        storyHistory: JSON.stringify([{ scenario: generatedScenario, choiceMade: null }]),
+        playerStats: JSON.stringify(defaultPlayerStats),
+        imageStyleTags: JSON.stringify(imageStyleTags),
+        currentScenarioText: generatedScenario
+      });
+    } catch (dbError) {
+      console.error("Error creating adventure in database:", dbError);
+      return res.status(500).json({ message: "Failed to initialize adventure (database error)." });
+    }
+
+    if (!IS_DUMMY_KEY) {
+      try {
+        const imagePrompt = `"${generatedScenario}". Image style: "${imageStyleTags.join(', ')}".`;
+        const imageResult = await imageModel.generateContent({
+          prompt: imagePrompt,
+          config: { responseModalities: [Modality.TEXT, Modality.IMAGE] }
+        });
+        
+        const imagePart = imageResult.response.candidates[0].content.parts.find(part => part.inlineData && part.inlineData.mimeType.startsWith('image/'));
+        if (imagePart && imagePart.inlineData.data) {
+          generatedImageData = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+        } else {
+          console.warn("No image data found in AI response or response structure unexpected for /start.");
+        }
+      } catch (aiError) {
+        console.error("Error generating initial image with AI:", aiError.message);
+      }
+    }
 
     res.json({
+      adventureId: newAdventure.id,
       scenario: generatedScenario,
-      choices: [ // Keeping original choices for start as per instruction
-        { id: "1", text: "Approach the mysterious figure." },
-        { id: "2", text: "Order an ale from the bartender." },
-        { id: "3", text: "Scan the room for familiar faces." },
-        { id: "4", text: "Quietly leave the tavern." },
-        { id: "5", text: "Ask the bartender about local rumors." }
-      ],
-      playerStats: defaultPlayerStats
+      choices: genericStartChoices, 
+      playerStats: defaultPlayerStats,
+      generatedImage: generatedImageData,
+      imageStyleTags: imageStyleTags
     });
-  } catch (error) {
-    console.error("Error generating start scenario:", error.message); // Log only message for brevity
-    res.status(500).json({ 
-      scenario: "The air shimmers, and for a moment, you feel a strange presence before it fades. You are standing at a crossroads, a dense forest to your left, a towering mountain to your right, a quaint village straight ahead, and a dark cave behind you. What path will you choose?", // Fallback
-      choices: [ // Fallback choices matching the new scenario
-        { id: "1", text: "Enter the dense forest." },
-        { id: "2", text: "Attempt to climb the towering mountain." },
-        { id: "3", text: "Walk towards the quaint village." },
-        { id: "4", text: "Explore the dark cave." },
-        { id: "5", text: "Sit and observe your surroundings." }
-      ],
-      playerStats: defaultPlayerStats
-    });
+
+  } catch (error) { 
+    console.error("Unexpected error in /api/game/start:", error);
+    res.status(500).json({ message: "An unexpected error occurred while starting the game." });
   }
 });
 
-// POST /api/game/action
-app.post('/api/game/action', async (req, res) => {
-  const { actionId, actionText, currentScenario } = req.body; // Expecting actionText and currentScenario from client
-  
-  // Fallback if actionText is not provided by the client yet
-  const playerActionDetail = actionText || `chose action ${actionId}`; 
-  // Fallback for current game context if not provided by client
-  const gameContext = currentScenario || "The player was in a situation described previously.";
 
-  // Slightly modified player stats for demonstration
-  const updatedPlayerStats = {
-    ...defaultPlayerStats,
-    energy: defaultPlayerStats.energy - 2, // Example: energy slightly decreased
-    health: defaultPlayerStats.health - Math.floor(Math.random() * 3) // Small random health change
-  };
+// POST /api/game/action/:adventureId
+app.post('/api/game/action/:adventureId', async (req, res) => {
+  const { adventureId } = req.params;
+  const { actionText } = req.body;
+
+  if (!actionText) {
+    return res.status(400).json({ message: "actionText is required in the request body." });
+  }
 
   try {
-    const prompt = `Given the previous situation: "${gameContext}". The player chose to: "${playerActionDetail}". Generate a short, engaging outcome for this action and a new situation (max 100 words). This outcome should directly result from the player's choice.`;
-    const result = await textModel.generateContent(prompt);
-    const newScenario = result.response.text();
+    const adventure = await Adventure.findByPk(adventureId);
+    if (!adventure) {
+      return res.status(404).json({ message: `Adventure with ID ${adventureId} not found.` });
+    }
 
+    let storyHistory = JSON.parse(adventure.storyHistory);
+    let playerStats = JSON.parse(adventure.playerStats);
+    // Retrieve imageStyleTags for current action's image generation
+    let imageStyleTags = JSON.parse(adventure.imageStyleTags || "[]"); // Ensure fallback to empty array if null/undefined
+
+    let newAiScenario = "The world shimmers strangely around you, and you feel a sense of disorientation.";
+    let newAiChoicesArray = defaultErrorChoices;
+
+    if (!IS_DUMMY_KEY) {
+      try {
+        const storySummary = storyHistory.slice(-3).map(h => h.scenario).join(' -> ');
+        const prompt = `Previous situation: ${adventure.currentScenarioText}. Player stats: ${JSON.stringify(playerStats)}. Story so far: ${storySummary}. Player action: ${actionText}. Generate a new scenario outcome resulting from this action (max 75 words) AND 4 distinct, relevant choices for this new situation. Output format should be: SCENARIO: [new scenario text] CHOICES: [choice1 | choice2 | choice3 | choice4].`;
+        
+        const result = await textModel.generateContent(prompt);
+        const responseText = result.response.text();
+        
+        const scenarioMatch = responseText.match(/SCENARIO: (.*?) CHOICES:/s);
+        const choicesMatch = responseText.match(/CHOICES: (.*)/s);
+
+        if (scenarioMatch && scenarioMatch[1] && choicesMatch && choicesMatch[1]) {
+          newAiScenario = scenarioMatch[1].trim();
+          const choicesText = choicesMatch[1].trim();
+          const parsedChoices = choicesText.split('|').map(choice => choice.trim()).filter(c => c);
+          
+          if (parsedChoices.length === 4) {
+            newAiChoicesArray = parsedChoices.map((text, index) => ({ id: (index + 1).toString(), text }));
+          } else {
+            console.warn("AI did not return exactly 4 choices. Using default error choices.");
+            if (!newAiScenario) newAiScenario = "The AI's response was unclear, but you sense a change.";
+          }
+        } else {
+          console.warn("Failed to parse AI response for scenario and choices. Using defaults.");
+        }
+      } catch (aiError) {
+        console.error("Error generating action response with AI:", aiError.message);
+      }
+    }
+
+    playerStats.energy = Math.max(0, playerStats.energy - 2); 
+
+    storyHistory.push({ scenario: adventure.currentScenarioText, choiceMade: actionText }); 
+    storyHistory.push({ scenario: newAiScenario, choiceMade: null }); 
+    
+    adventure.storyHistory = JSON.stringify(storyHistory);
+    adventure.currentScenarioText = newAiScenario;
+    adventure.playerStats = JSON.stringify(playerStats);
+    
+    await adventure.save(); // Save changes before generating image for the new state
+
+    // 1. Image Generation Logic (New part for this subtask)
+    let generatedImageData = null;
+    if (!IS_DUMMY_KEY) {
+      try {
+        // Use the imageStyleTags loaded from the adventure record
+        const imagePrompt = `"${newAiScenario}". Image style: "${imageStyleTags.join(', ')}".`;
+        const imageResult = await imageModel.generateContent({
+          prompt: imagePrompt,
+          config: { responseModalities: [Modality.TEXT, Modality.IMAGE] } // Using Modality enum
+        });
+        
+        const imagePart = imageResult.response.candidates[0].content.parts.find(part => part.inlineData && part.inlineData.mimeType.startsWith('image/'));
+        if (imagePart && imagePart.inlineData.data) {
+          generatedImageData = `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
+        } else {
+          console.warn("No image data found in AI response or response structure unexpected for /action.");
+        }
+      } catch (aiError) {
+        console.error("Error generating image for action with AI:", aiError.message);
+        // generatedImageData remains null
+      }
+    }
+
+    // 2. Return JSON Response (Updated to include generatedImageData)
     res.json({
-      scenario: newScenario,
-      choices: defaultChoices, // Using default choices for now
-      playerStats: updatedPlayerStats
+      adventureId: adventure.id,
+      scenario: newAiScenario,
+      choices: newAiChoicesArray,
+      playerStats: playerStats,
+      generatedImage: generatedImageData // This is the updated field
     });
+
   } catch (error) {
-    console.error("Error generating action response:", error.message); // Log only message
-    res.status(500).json({
-      scenario: "A thick fog suddenly rolls in, obscuring your view. When it clears, the world around you seems subtly changed, and you are unsure if your action had any effect or if some other force is at play.", // Fallback
-      choices: defaultChoices,
-      playerStats: updatedPlayerStats // Return updated stats even on error
-    });
+    console.error(`Error processing action for adventure ${adventureId}:`, error);
+    res.status(500).json({ message: "An unexpected error occurred while processing the action." });
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
-  if (GEMINI_API_KEY === "DUMMY_API_KEY_FOR_WORKER_TESTING") {
-    console.log("INFO: Running with DUMMY_API_KEY. Actual AI calls will fail but the server will operate with fallback scenarios.");
-  }
-});
+
+// Synchronize database and then start server
+sequelize.sync()
+  .then(() => {
+    console.log('Database synchronized successfully.');
+    app.listen(port, () => {
+      console.log(`Backend server is running on port ${port}`);
+      if (IS_DUMMY_KEY) {
+        console.log("INFO: Running with DUMMY_API_KEY. Actual AI calls will use fallbacks. Image generation might be skipped or use placeholders if model call fails.");
+      }
+    });
+  })
+  .catch(err => {
+    console.error('Error synchronizing database:', err);
+    process.exit(1); 
+  });

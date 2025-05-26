@@ -1,8 +1,9 @@
 body {
-  font-family: sans-serif;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   margin: 0;
-  background-color: #f0f0f0;
-  color: #333;
+  background-color: #1a1a1a; /* Darker background for a gamey feel */
+  color: #e0e0e0; /* Lighter text color */
+  line-height: 1.6;
 }
 
 .App {
@@ -10,100 +11,255 @@ body {
 }
 
 .App-header {
-  background-color: #282c34;
+  background-color: #0d0d0d;
   padding: 20px;
   color: white;
-  margin-bottom: 20px;
+  margin-bottom: 30px;
+  border-bottom: 3px solid #c8a2c8; /* Elden-fantasy accent */
 }
 
 .App-header h1 {
   margin: 0;
-  font-size: 2em;
+  font-size: 2.5em;
+  font-weight: normal;
+  letter-spacing: 1px;
 }
 
 main {
   padding: 20px;
-  max-width: 800px;
+  max-width: 1200px; /* Wider for potential three-column layout */
   margin: 0 auto;
-  background-color: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
+/* GamePage Layout */
 .game-page {
+  display: grid;
+  grid-template-columns: 1fr; /* Default single column for mobile */
+  grid-template-areas:
+    "visuals"
+    "content"
+    "sidebar";
+  gap: 25px;
+  align-items: start; /* Align items to the start of their grid area */
+}
+
+/* Tablet and Desktop Layout */
+@media (min-width: 768px) {
+  .game-page {
+    grid-template-columns: 2fr 1fr; /* Two columns: visuals+content | sidebar */
+    grid-template-areas:
+      "visuals sidebar"
+      "content sidebar";
+  }
+}
+
+@media (min-width: 1024px) {
+  .game-page {
+    grid-template-columns: 1.5fr 2fr 1fr; /* Three columns: visuals | content | sidebar */
+    grid-template-areas: "visuals content sidebar";
+  }
+}
+
+.game-visuals {
+  grid-area: visuals;
+  background-color: #222;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
+  min-height: 200px; /* Ensure space even if image is loading/missing */
   display: flex;
-  flex-direction: column;
-  gap: 20px;
+  justify-content: center;
+  align-items: center;
+}
+
+.game-image {
+  width: 100%;
+  max-width: 500px; /* Max width for the image itself */
+  height: auto;
+  border-radius: 6px;
+  border: 2px solid #444;
+  object-fit: cover; /* Ensure image covers the area nicely */
+}
+
+.image-placeholder {
+  width: 100%;
+  max-width: 500px;
+  height: 300px; /* Fixed height for placeholder */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #2a2a2a;
+  color: #777;
+  border: 2px dashed #444;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.game-content {
+  grid-area: content;
+  background-color: #222;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .scenario {
   padding: 15px;
-  border: 1px solid #ddd;
+  border: 1px solid #333;
   border-radius: 4px;
-  background-color: #f9f9f9;
+  background-color: #2c2c2c;
+  margin-bottom: 20px;
 }
 
 .scenario h2 {
   margin-top: 0;
-  color: #555;
+  color: #c8a2c8; /* Accent color */
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
 }
 
-.player-stats {
-  padding: 15px;
-  border: 1px solid #ddd;
+.choices-section {
+  margin-bottom: 20px;
+}
+
+.choices-section h3 {
+  color: #c8a2c8; /* Accent color */
+  margin-bottom: 15px;
+}
+
+.choice-button {
+  display: block;
+  width: 100%;
+  padding: 12px 15px;
+  margin-bottom: 10px;
+  background-color: #3a3a3a;
+  color: #e0e0e0;
+  border: 1px solid #555;
   border-radius: 4px;
-  background-color: #f9f9f9;
+  cursor: pointer;
+  font-size: 1em;
+  text-align: left;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.choice-button:hover {
+  background-color: #4a4a4a;
+  border-color: #c8a2c8;
+}
+
+.choice-button:disabled {
+  background-color: #2a2a2a;
+  color: #777;
+  cursor: not-allowed;
+}
+
+.free-text-form {
+  display: flex;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.free-text-input {
+  flex-grow: 1;
+  padding: 10px;
+  border: 1px solid #555;
+  border-radius: 4px;
+  background-color: #2c2c2c;
+  color: #e0e0e0;
+  font-size: 1em;
+}
+
+.submit-action-button {
+  padding: 10px 20px;
+  background-color: #c8a2c8; /* Accent color */
+  color: #1a1a1a;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  transition: background-color 0.2s ease;
+}
+
+.submit-action-button:hover {
+  background-color: #b38fb3;
+}
+
+.submit-action-button:disabled {
+  background-color: #555;
+  color: #888;
+}
+
+.game-sidebar {
+  grid-area: sidebar;
+  background-color: #222;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 .player-stats h3 {
   margin-top: 0;
-  color: #555;
+  color: #c8a2c8; /* Accent color */
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
 }
 
 .player-stats ul {
   list-style-type: none;
   padding: 0;
+  margin: 0 0 20px 0;
 }
 
 .player-stats li {
-  padding: 5px 0;
-  border-bottom: 1px solid #eee;
+  padding: 6px 0;
+  border-bottom: 1px solid #333;
+  font-size: 0.95em;
 }
 
 .player-stats li:last-child {
   border-bottom: none;
 }
 
-.choices {
-  padding: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f9f9f9;
+.image-styles-info {
+  font-size: 0.85em;
+  color: #aaa;
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid #333;
 }
 
-.choices h3 {
-  margin-top: 0;
+.image-styles-info p {
+  margin: 0;
+}
+
+.loading-indicator, .loading-fullscreen, .error-fullscreen {
+  padding: 20px;
+  text-align: center;
+  font-size: 1.1em;
+  color: #c8a2c8;
+}
+
+.loading-fullscreen, .error-fullscreen {
+    min-height: 80vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+}
+
+.error-message {
+  background-color: #4a2a2a;
+  color: #ffcccc;
+  padding: 10px 15px;
+  border: 1px solid #800000;
+  border-radius: 4px;
+  margin-bottom: 15px;
+}
+
+.adventure-id-display {
+  font-size: 0.75em;
   color: #555;
-}
-
-.choices button {
-  display: block;
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 10px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 1em;
-  text-align: left;
-}
-
-.choices button:hover {
-  background-color: #0056b3;
-}
-
-.choices button:last-child {
-  margin-bottom: 0;
+  margin-top: 20px;
+  text-align: center;
 }

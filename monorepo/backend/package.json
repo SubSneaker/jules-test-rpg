@@ -12,8 +12,8 @@
   "license": "ISC",
   "dependencies": {
     "@google/genai": "^0.15.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.5.0",
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "sequelize": "^6.37.3",
+    "sqlite3": "^5.1.7"
   }
 }
